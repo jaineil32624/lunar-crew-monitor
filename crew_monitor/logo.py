@@ -52,6 +52,25 @@ def render(size=256, t=0.0, state="idle"):
             a = int(200 * (1 - p))
             d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=(*C1, a), width=max(2, int(S * 0.008)))
 
+    # mission badge: deep-blue disc with tiny stars behind the moon
+    disc = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(disc)
+    R = r * 1.22
+    for i in range(24):                                   # radial gradient
+        f = i / 23
+        rr = R * (1 - f * 0.55)
+        col = (int(14 + 30 * f), int(32 + 50 * f), int(110 + 90 * f), 255)
+        dd.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=col)
+    srng = np.random.default_rng(11)
+    for _ in range(26):
+        a, d = srng.uniform(0, 2 * math.pi), R * math.sqrt(srng.uniform(0.05, 0.92))
+        sx_, sy_ = cx + d * math.cos(a), cy + d * math.sin(a)
+        tw = 0.5 + 0.5 * math.sin(2 * math.pi * (t * 2 + srng.uniform(0, 1)))
+        sr_ = S * 0.004 * (1 + tw)
+        dd.ellipse([sx_ - sr_, sy_ - sr_, sx_ + sr_, sy_ + sr_], fill=(255, 255, 255, int(120 + 135 * tw)))
+    dd.ellipse([cx - R, cy - R, cx + R, cy + R], outline=(150, 190, 255, 140), width=max(2, int(S * 0.006)))
+    img.alpha_composite(disc)
+
     # crescent with gradient
     grad = _gradient(S, 35).convert("RGBA")
     img.paste(grad, (0, 0), _crescent_mask(S, cx, cy, r))
@@ -84,7 +103,11 @@ def render(size=256, t=0.0, state="idle"):
     x0, x1, base = cx - r * 0.25, cx + r * 0.95, cy + r * 0.12
     pts = [(x0, base), (x0 + r * 0.30, base), (x0 + r * 0.42, base - r * 0.42 * amp),
            (x0 + r * 0.55, base + r * 0.30 * amp), (x0 + r * 0.66, base), (x1, base)]
-    ImageDraw.Draw(img).line(pts, fill=(255, 255, 255, 235), width=w, joint="curve")
+    streak = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ImageDraw.Draw(streak).line(pts, fill=(255, 80, 60, 200), width=w * 3, joint="curve")
+    img.alpha_composite(streak.filter(ImageFilter.GaussianBlur(w)))
+    ImageDraw.Draw(img).line(pts, fill=(255, 92, 70, 255), width=int(w * 1.4), joint="curve")
+    ImageDraw.Draw(img).line(pts, fill=(255, 235, 220, 255), width=max(1, w // 2), joint="curve")
     return img.resize((size, size), Image.LANCZOS)
 
 

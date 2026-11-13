@@ -75,12 +75,15 @@ class VisionPipeline:
                 a.close()
 
 
-def live_session(duration=30, camera=0, use_mic=True, preview=True, prompt=None):
-    """Returns (features, info) or (None, info) if cancelled."""
+def live_session(duration=30, camera=0, use_mic=True, preview=True, prompt=None, on_frame=None, stop_flag=None):
+    """Returns (features, info) or (None, info) if cancelled.
+    on_frame(frame_bgr, seconds, info) is called with each annotated frame (used by the
+    dashboard to show the camera inside the app); stop_flag() -> True cancels."""
     import cv2
     prompt = prompt or PROMPTS[int(time.time() // 86400) % len(PROMPTS)]
-    print(f"\nCheck-in prompt: \"{prompt}\"\nPlease answer out loud while facing the camera "
-          f"(sit so your shoulders are visible). Recording {duration}s...")
+    if preview:
+        print(f"\nCheck-in prompt: \"{prompt}\"\nPlease answer out loud while facing the camera "
+              f"(sit so your shoulders are visible). Recording {duration}s...")
     cap = cv2.VideoCapture(camera)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open camera {camera}")
@@ -105,6 +108,17 @@ def live_session(duration=30, camera=0, use_mic=True, preview=True, prompt=None)
                 continue
             last = el
             vp.process(frame, el)
+            if stop_flag and stop_flag():
+                cancelled = True
+                break
+            if on_frame:
+                level = 0.0
+                if rec and rec.chunks:
+                    import numpy as _np
+                    level = float(_np.sqrt(_np.mean(rec.chunks[-1] ** 2)))
+                vp.draw(frame, el, duration, prompt)
+                on_frame(frame, el, {"face": bool(vp.last_face), "pose": bool(vp.last_pose),
+                                     "voice_level": level, "prompt": prompt, "duration": duration})
             if preview:
                 vp.draw(frame, el, duration, prompt)
                 cv2.imshow("Lunar Crew Monitor - check-in", frame)
