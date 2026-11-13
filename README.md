@@ -12,7 +12,17 @@ sensors, and it reads that file live.
 
 > Research and education prototype. It is not a medical device and never diagnoses.
 
-## Run it
+## Easiest way to open it
+
+- **Windows:** double-click **`Start SELENE (Windows).bat`**.
+- **Mac:** double-click **`start_selene.command`**. The first time, right-click it and choose Open.
+- **Linux:** run `./start_selene.command`.
+
+The first start checks for Python, opens the Python download page if Python is missing,
+installs everything into a private `.venv` folder (a few minutes, once), and opens SELENE.
+Put your simulation's output file in the `data/` folder and it is used automatically.
+
+## Run it manually
 
 Python 3.10-3.12 is recommended. On Linux you also need `sudo apt install python3-tk libportaudio2 espeak`.
 
