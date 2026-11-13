@@ -88,14 +88,9 @@ def cmd_analyze(args):
     _finish(s, ast, feats, "file", args.note or "", args)
 
 
-def cmd_simulate(args):
-    from . import simulate
-    s = _store(args)
-    print(f"Simulating a {args.days}-day mission for a crew of 4...")
-    simulate.run(s, days=args.days, seed=args.seed)
-    print_crew(s, color=sys.stdout.isatty())
-    out = write_html(s, args.html)
-    print(f"\nDashboard written to {Path(out).resolve()}")
+def cmd_dashboard(args):
+    from .gui import run
+    run(args.data, args.db)
 
 
 def cmd_report(args):
@@ -164,9 +159,9 @@ def main(argv=None):
             q.add_argument("--mood", type=float); q.add_argument("--stress", type=float)
             q.add_argument("--sleep", type=float); q.add_argument("--note")
 
-    sm = sub.add_parser("simulate", help="run a synthetic crew mission (no hardware needed)")
-    sm.add_argument("--days", type=int, default=21); sm.add_argument("--seed", type=int, default=7)
-    sm.add_argument("--html", default="crew_dashboard.html"); sm.set_defaults(fn=cmd_simulate)
+    d = sub.add_parser("dashboard", help="open the SELENE AI dashboard")
+    d.add_argument("--data", help="CSV/JSON output of your simulation or sensors")
+    d.set_defaults(fn=cmd_dashboard)
 
     r = sub.add_parser("report", help="crew summary, or one astronaut's sessions")
     r.add_argument("id", nargs="?"); r.add_argument("--last", type=int, default=3)

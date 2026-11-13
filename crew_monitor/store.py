@@ -21,7 +21,8 @@ class Store:
         path = path or config.DB_PATH
         if str(path) != ":memory:":
             config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(path))
+        # the dashboard reads/writes from its AI worker thread too
+        self.db = sqlite3.connect(str(path), check_same_thread=False)
         self.db.executescript(SCHEMA)
 
     def add_astronaut(self, aid, name, role="", share=False):

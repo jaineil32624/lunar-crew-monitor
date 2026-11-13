@@ -1,7 +1,6 @@
 """Run with:  python -m unittest discover tests   (no camera/mic needed)"""
 import unittest
 import numpy as np
-from crew_monitor import simulate
 from crew_monitor.store import Store
 from crew_monitor.voice import extract_features
 from crew_monitor.selfreport import text_sentiment
@@ -43,17 +42,21 @@ class TestText(unittest.TestCase):
         self.assertLess(text_sentiment("not happy"), 0)
 
 
-class TestMission(unittest.TestCase):
-    def test_simulated_crew(self):
-        s = Store(":memory:")
-        simulate.run(s, days=21, verbose=False)
-        status = {a["id"]: [x["assessment"]["status"] for x in s.sessions(a["id"])] for a in s.astronauts()}
-        self.assertNotIn("ORANGE", status["A1"])                 # steady: no false alarms
-        self.assertEqual(status["A2"][-1], "ORANGE")              # fatigue detected
-        self.assertIn("ORANGE", status["A3"][12:17])              # stress window detected
-        self.assertNotEqual(status["A3"][-1], "ORANGE")           # ...and recovery seen
-        flags = [f for x in s.sessions("A4") for f in x["assessment"]["flags"]]
-        self.assertTrue(any("Self-report looks fine" in f for f in flags))  # masking caught
+class TestFusion(unittest.TestCase):
+    def test_baseline_then_fatigue(self):
+        import random
+        from crew_monitor.fusion import assess
+        from crew_monitor import config
+        random.seed(0)
+        base = {"face_perclos": .05, "voice_speech_rate": 4.0, "posture_neck_flexion": 40, "self_sleep_h": 7.5}
+        hist = []
+        for _ in range(6):
+            f = {k: v + random.gauss(0, config.SCALE_FLOOR[k] * .5) for k, v in base.items()}
+            hist.append({"features": f, "assessment": assess(f, hist)})
+        self.assertEqual(hist[0]["assessment"]["status"], "CALIBRATING")
+        tired = {"face_perclos": .25, "voice_speech_rate": 2.8, "posture_neck_flexion": 50, "self_sleep_h": 4.5}
+        a = assess(tired, hist)
+        self.assertEqual(a["indicators"]["fatigue"]["level"], "concern")
 
 
 if __name__ == "__main__":

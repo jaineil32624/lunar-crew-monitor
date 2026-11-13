@@ -1,0 +1,3 @@
+timestamp,astronaut_id,heart_rate,hrv_ms,spo2,skin_temp_c,sleep_h,exercise_min,resistive_min,water_ml,radiation_msv,radiation_today_msv,mood,stress,o2_pct,ppco2_mmhg,pressure_kpa,humidity_pct
+2026-11-13T08:00:00,A1,62,58,97.8,36.6,7.5,0,0,250,16.4,0.30,7,3,20.9,2.1,101.3,45
+2026-11-13T08:00:00,A2,71,34,97.4,36.7,5.4,0,0,200,16.4,0.30,5,4,20.9,2.1,101.3,45

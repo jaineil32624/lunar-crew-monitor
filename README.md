@@ -1,88 +1,118 @@
-# Lunar Crew Monitor
+# SELENE: Lunar Habitat AI Dashboard
 
-A prototype for the NASA HUNCH *Lunar Smart Adaptive Habitat* project. It combines
-**face**, **voice** and **posture** analysis with a short self-report to track an
-astronaut's wellbeing against their **own personal baseline**. It then suggests
-supportive habitat responses: lighting, soundscapes, companion prompts and crew activities.
+**SELENE** (Space Environment Life & Neuro-health Engine) is an AI health dashboard for a
+lunar habitat, built for the NASA HUNCH *Lunar Smart Adaptive Habitat* project. Astronauts
+talk to it by voice or text. It watches **physical** and **mental** health, and it controls
+habitat comfort systems such as lighting, soundscapes and temperature.
 
-> Research and education prototype only. It is **not** a medical or diagnostic device.
-> Its outputs are prompts for a friendly check-in.
+![SELENE dashboard](docs/dashboard.png)
 
-## How it works
+It does **not** generate data itself. Point it at your simulation's output file, or at real
+sensors, and it reads that file live.
 
-```
- camera ──► Face Landmarker ──► blink rate, PERCLOS (drowsiness), smile, brow-down,
-        │                        gaze-down, expressivity (flat affect)
-        └─► Pose Landmarker ──► head-drop angle, trunk lean, movement, stillness, fidgeting
- mic ─────► prosody (numpy) ──► pitch, pitch range (monotone), jitter, loudness,
-                                 pauses, speech rate
- survey ──► mood / stress / sleep + text sentiment
-                   │
-                   ▼
-   Personal baseline (first 5 sessions, median + MAD) ──► robust z-scores
-                   ▼
-   Indicators: FATIGUE · STRESS · LOW MOOD (each averaged per channel)
-   + cross-channel agreement  + 3-session trend  + "says fine, but behaviour differs" flag
-                   ▼
-   Status GREEN / YELLOW / ORANGE  ──►  habitat responses  ──►  local dashboard
-```
+> Research and education prototype. It is not a medical device and never diagnoses.
 
-**Privacy by design:** frames and audio are processed in memory and then discarded.
-Only numbers are saved, to a local SQLite file, and free-text notes are not stored.
-A red dot shows while monitoring is on. Press `x` to cancel a session without saving
-anything. The `pause` command stops all monitoring. Ground is notified only if the
-astronaut opts in with `consent`, and `forget` deletes all of a person's data.
+## Run it
 
-## Install (Windows, macOS or Linux, Python 3.9-3.12 recommended)
+Python 3.10-3.12 is recommended. On Linux you also need `sudo apt install python3-tk libportaudio2 espeak`.
 
 ```bash
-cd lunar_crew_monitor
-python -m venv .venv
-# Windows:  .venv\Scripts\activate      macOS/Linux:  source .venv/bin/activate
 pip install -r requirements.txt
-python -m crew_monitor setup-models      # downloads the 2 MediaPipe models (~10 MB) once
+python -m crew_monitor setup-models
+python -m crew_monitor dashboard --data path/to/your_simulation_output.csv
 ```
 
-Linux only: you may also need `sudo apt install libportaudio2 libegl1 libgles2`.
+`setup-models` downloads the face and pose models once (about 10 MB). You can also open
+the dashboard without `--data` and pick the file under **Settings**.
 
-## Try it with no camera: a simulated 21-day mission
+## What's on the dashboard
 
-```bash
-python -m crew_monitor simulate
-```
-
-This simulates a 4-person crew: one steady, one with developing fatigue, one with a
-stress spike on days 12-16, and one with hidden low mood (says "fine" but face and voice
-disagree). It then writes `crew_dashboard.html`, which you can open in a browser.
-
-## Use it for real (webcam + microphone)
-
-```bash
-python -m crew_monitor enroll A1 --name "Your Name" --role Engineer
-python -m crew_monitor checkin A1            # 30 s: answer the spoken prompt, then 4 quick questions
-python -m crew_monitor report A1             # recent sessions in detail
-python -m crew_monitor report --html dash.html
-```
-
-During a check-in, sit so your face **and shoulders** are visible and answer the prompt
-out loud. Press `q` to finish early or `x` to cancel. The first 5 check-ins build your
-baseline, and scoring starts at check-in 6. Do them at roughly the same time each day.
-
-Other commands:
-
-| Command | What it does |
+| Area | Contents |
 |---|---|
-| `checkin A1 --duration 45 --camera 1` | longer session, second camera |
-| `checkin A1 --no-mic` / `--no-survey` / `--no-preview` | skip a channel or the window |
-| `analyze A1 --video clip.mp4 --audio clip.wav --mood 6 --sleep 7` | score recorded files |
-| `consent A1 on` / `off` | allow or stop sharing summaries with ground |
-| `report --html ground.html --ground` | dashboard showing only consenting crew |
-| `pause` / `resume` | crew privacy pause |
-| `forget A1` | delete all of A1's data |
+| **AI assistant** | Animated SELENE logo (idle, listening, thinking, speaking), chat, quick-prompt buttons, **Talk** push-to-talk, **Hey Selene** hands-free wake word, spoken replies |
+| **Physical health** | Heart rate (with live trace), blood oxygen, HRV, body temperature; exercise countermeasures (120 min/day), resistive exercise for bone and muscle (60 min), hydration (2.5 L), sleep (8 h), radiation dose against NASA's 600 mSv career limit |
+| **Mental wellbeing** | Fatigue, stress and low mood scored against the astronaut's own baseline, from the 30-second camera and microphone check-in (face, voice, posture) |
+| **Habitat** | Circadian lighting (Day 6500 K to Night 1900 K), soundscapes, temperature, cabin O2, CO2 and pressure |
+| **Alerts and schedule** | RED/ORANGE/YELLOW alerts, scheduled family calls |
+| **Trends / Crew / Settings** | Mental trend chart and heart-rate history; whole-crew status; data file, voice and privacy controls |
 
-Data is stored in `~/.lunar_crew_monitor/`. Set `CREW_MONITOR_HOME` to change this.
+## Voice commands
 
-## Run the tests
+The wake phrase is "Hey Selene", or press **Talk**.
+
+| Say | SELENE does |
+|---|---|
+| "How am I doing today?" | Physical and mental summary |
+| "Start my check-in" | 30-second face, voice and posture wellbeing check |
+| "Log 45 minutes of resistive exercise" / "I drank 500 ml" / "I slept 6 hours" | Adds to today's log, on top of your data file |
+| "I feel stressed / tired / lonely" / "I can't sleep" | Supportive reply, plus lighting and sound changes or a family call |
+| "Start a breathing exercise" | Guided 4-7-8 breathing |
+| "Set lights to relax / night / focus / day" | Changes the lighting |
+| "Play ocean waves" / "Stop sounds" | Soundscapes |
+| "Set temperature to 23 degrees" | Cabin temperature |
+| "What's my radiation dose?" / "Crew status" / "Habitat status" | Reports |
+| "Schedule a family call" | Adds it to the schedule |
+| "Medical emergency" / any mention of self-harm | **Immediate RED alert** to the commander and flight surgeon or psychologist (always offline, never waits for the network) |
+| "Pause monitoring" / "Resume monitoring" | Privacy |
+
+## AI modes
+
+- **Offline AI** is the default. It understands the commands above with no internet, as a
+  real lunar habitat would need with a 1.3-second, sometimes-down link to Earth.
+- **Claude AI** turns on when `ANTHROPIC_API_KEY` is set. It gives natural conversation, and
+  Claude calls the same habitat and health tools. If the link fails, SELENE falls back to
+  offline mode automatically. Change the model with `SELENE_MODEL`.
+
+Speech-to-text uses Google's free recognizer, which needs internet. For fully offline
+speech, `pip install vosk`, download a Vosk model, and set `SELENE_STT=vosk`. Spoken replies
+(pyttsx3) are always offline.
+
+## Connecting your simulation
+
+Your simulation writes a **CSV, JSON or JSON-lines** file with one row per reading. The
+dashboard re-reads it whenever it changes. Only `astronaut_id` is required. Column names are
+matched case-insensitively, and common alternatives are accepted (`hr`, `pulse`, `crew`,
+`sleep_hours`, `co2`...; the full list is in `crew_monitor/datasource.py` → `ALIASES`).
+Unrecognised columns are listed under Settings so you can map them.
+
+| Column | Meaning |
+|---|---|
+| `timestamp`, `astronaut_id`, `mission_day` | When, who, which mission day |
+| `heart_rate`, `hrv_ms`, `spo2`, `skin_temp_c`, `resp_rate` | Wearable vitals |
+| `sleep_h`, `exercise_min`, `resistive_min`, `water_ml`, `steps` | Daily totals so far |
+| `radiation_msv`, `radiation_today_msv` | Mission dose and today's dose |
+| `mood`, `stress`, `sentiment` | Self-report / NLP scores (shown and used in check-ins) |
+| `o2_pct`, `ppco2_mmhg`, `pressure_kpa`, `cabin_temp_c`, `humidity_pct` | Cabin air |
+
+See `examples/data_format_example.csv` for the layout.
+
+## Wellbeing check-in (face, voice, posture)
+
+The check-in records 30 seconds of camera and microphone. MediaPipe face blendshapes give
+blinks, drowsiness (PERCLOS), smiling, frowning and gaze; MediaPipe pose gives head drop,
+slouching, movement and fidgeting; voice prosody gives pitch, monotone range, pauses and
+speech rate. The first 5 check-ins learn each astronaut's own baseline. After that, fatigue,
+stress and low mood are scored as robust z-scores against that baseline, with trend and
+"says fine, but behaviour differs" flags.
+
+## Privacy
+
+Video and audio are processed in memory and never saved; only numbers are stored, in a
+local SQLite file. There is a visible monitoring light and a pause command. Ground sees
+results only with consent (`python -m crew_monitor consent A1 on`), and
+`python -m crew_monitor forget A1` deletes a person's data.
+
+## Command line (also available)
+
+| Command | Purpose |
+|---|---|
+| `dashboard --data FILE` | Open the AI dashboard |
+| `enroll A1 --name "Name" --role Engineer` | Register an astronaut and their display name |
+| `checkin A1` / `analyze A1 --video v.mp4 --audio a.wav` | Check-in without the dashboard |
+| `report [A1] [--html out.html]` | Text or HTML report |
+| `consent A1 on/off`, `pause`, `resume`, `forget A1` | Privacy |
+
+## Tests
 
 ```bash
 python -m unittest discover tests
@@ -92,21 +122,12 @@ python -m unittest discover tests
 
 | File | Purpose |
 |---|---|
-| `crew_monitor/face.py` | MediaPipe blendshapes → facial features |
-| `crew_monitor/posture.py` | MediaPipe pose → posture and movement features |
-| `crew_monitor/voice.py` | microphone/WAV → prosody features (numpy only) |
-| `crew_monitor/selfreport.py` | survey and text sentiment (swap in your BERT model here) |
-| `crew_monitor/fusion.py` | personal baseline, z-scores, indicators, trends, flags |
-| `crew_monitor/interventions.py` | indicator → habitat response mapping |
-| `crew_monitor/config.py` | thresholds and which features feed which indicator |
-| `crew_monitor/simulate.py` | synthetic crew for demos and testing |
-| `crew_monitor/capture.py`, `cli.py`, `report.py`, `store.py` | capture, CLI, dashboard, database |
-
-## Ideas to extend
-
-- Replace the tiny lexicon in `selfreport.text_sentiment` with your fine-tuned BERT model,
-  and transcribe the check-in audio with Whisper so the spoken answer is scored too.
-- Feed the session features into your Random Forest from the proposal, then rerun the
-  +0.3 sentiment sensitivity test to show that the multimodal version is more robust.
-- Send `interventions.recommend()` output to Arduino/Raspberry Pi LED lighting in the scale model.
-- Validate the features on DAIC-WOZ, which ships OpenFace and COVAREP features.
+| `crew_monitor/gui.py` | Dashboard window (CustomTkinter) |
+| `crew_monitor/assistant.py` | SELENE: tools, offline brain, Claude brain, safety rules |
+| `crew_monitor/voice_io.py` | Microphone → text, text → speech, wake word |
+| `crew_monitor/logo.py` | The SELENE logo, drawn in code |
+| `crew_monitor/datasource.py` | Reads your simulation output |
+| `crew_monitor/physical.py` | Physical health targets and flags |
+| `crew_monitor/habitat.py` | Lighting, sound, temperature, alerts, schedule |
+| `crew_monitor/face.py`, `posture.py`, `voice.py`, `fusion.py` | Wellbeing check-in analysis |
+| `crew_monitor/context.py`, `store.py`, `capture.py`, `cli.py`, `report.py` | App state, database, camera, CLI, reports |

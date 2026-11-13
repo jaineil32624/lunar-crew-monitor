@@ -1,6 +1,13 @@
 numpy>=1.24
-# Camera-based face + posture analysis
+pillow>=10
+# Dashboard window
+customtkinter>=5.2
+# Voice chat
+SpeechRecognition>=3.10
+pyttsx3>=2.90
+sounddevice>=0.4
+# Claude AI mode (optional - offline mode works without it)
+anthropic>=2.0
+# Camera wellbeing check-in (face + posture)
 opencv-python>=4.8
 mediapipe>=0.10.14
-# Live microphone capture (not needed for WAV files or simulation)
-sounddevice>=0.4
