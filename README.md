@@ -21,7 +21,23 @@
 
 ---
 
-## 🚀 Quick start
+## ▶️ Play it: no install needed
+
+<div align="center">
+
+[![Download SELENE for Windows](https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/jaineil32624/lunar-crew-monitor/releases/latest/download/SELENE-Windows.zip)
+[![Download SELENE for macOS](https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/jaineil32624/lunar-crew-monitor/releases/latest/download/SELENE-macOS.zip)
+
+</div>
+
+1. Click your download button above and unzip the file.
+2. **Windows:** open the `SELENE` folder and double-click **`SELENE.exe`**. If Windows shows "Windows protected your PC", click **More info → Run anyway**. The app isn't code-signed, which is normal for student projects.
+   **Mac:** double-click **SELENE.app**. The first time, right-click it and choose **Open**.
+3. To use your own simulation data, drop the file into the `data` folder that appears next to the app.
+
+> The download buttons work once a release is published: on GitHub, open **Releases → Draft a new release**, create tag `v0.1.0`, and publish. GitHub then builds the Windows and Mac apps automatically (about 15 minutes).
+
+## 🚀 Run from source (with Python)
 
 1. Download: green **Code** button → **Download ZIP**, then unzip.
 2. Open it:
@@ -216,6 +232,7 @@ python -m unittest discover tests
 | `crew_monitor/space_art.py` | Procedural nebula backdrop |
 | `crew_monitor/face.py`, `posture.py`, `voice.py`, `fusion.py` | Wellbeing check-in analysis |
 | `crew_monitor/context.py`, `store.py`, `capture.py`, `cli.py`, `report.py` | App state, database, camera, CLI, reports |
+| `selene_app.py`, `scripts/build_app.py`, `.github/workflows/build-app.yml` | Double-click entry point, app builder, automatic Windows/Mac builds on each `v*` release |
 
 ---
 

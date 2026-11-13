@@ -8,7 +8,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-ASSETS = Path(__file__).resolve().parent.parent / "assets"
+import os
+ASSETS = Path(os.environ.get("SELENE_ASSETS_DIR", Path(__file__).resolve().parent.parent / "assets"))
 
 
 def _fractal(w, h, rng, octaves=6, base=3):
