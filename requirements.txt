@@ -1,0 +1,6 @@
+numpy>=1.24
+# Camera-based face + posture analysis
+opencv-python>=4.8
+mediapipe>=0.10.14
+# Live microphone capture (not needed for WAV files or simulation)
+sounddevice>=0.4
