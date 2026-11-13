@@ -49,6 +49,22 @@ class Habitat:
         self.alerts.insert(0, (time.strftime("%H:%M"), severity, text))
         self.alerts = self.alerts[:20]
 
+    def exterior(self):
+        """Lunar surface conditions from the data file, with plain-language notes."""
+        e = self.ds.exterior() if self.ds else {}
+        notes = []
+        if "sun_elevation_deg" in e:
+            notes.append("lunar day" if e["sun_elevation_deg"] > 0 else "lunar night")
+        if e.get("solar_activity", 0) >= 5:
+            notes.append("SOLAR STORM RISK - stay near the storm shelter")
+        if e.get("dust_level", 0) >= 7:
+            notes.append("high dust - seal airlock, check filters")
+        if "ext_temp_c" in e and (e["ext_temp_c"] > 100 or e["ext_temp_c"] < -150):
+            notes.append("extreme surface temperature - limit EVA")
+        e["notes"] = notes
+        e["eva_ok"] = not any(("STORM" in n or "extreme" in n) for n in notes)
+        return e
+
     def status(self):
         return {"lighting": self.lighting, "lighting_label": LIGHTING[self.lighting]["label"],
                 "soundscape": self.soundscape, "temperature_c": self.temperature_c,

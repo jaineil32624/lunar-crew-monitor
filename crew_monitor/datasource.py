@@ -32,6 +32,22 @@ ALIASES = {
     "radiation_today_msv": ["radiation_today_msv", "daily_dose_msv", "dose_today_msv"],
     "mission_day": ["mission_day", "day", "sol"],
     "mood": ["mood", "mood_score"],
+    # brainwaves (EEG headband): relative band power 0-1 or %
+    "eeg_delta": ["eeg_delta", "delta"], "eeg_theta": ["eeg_theta", "theta"],
+    "eeg_alpha": ["eeg_alpha", "alpha"], "eeg_beta": ["eeg_beta", "beta"],
+    "eeg_gamma": ["eeg_gamma", "gamma"],
+    # blood / circulation
+    "systolic_bp": ["systolic_bp", "systolic", "bp_sys", "sbp"],
+    "diastolic_bp": ["diastolic_bp", "diastolic", "bp_dia", "dbp"],
+    "perfusion_index": ["perfusion_index", "blood_flow", "pi", "perfusion"],
+    # stability: balance / postural sway (0-100, higher = steadier)
+    "balance_score": ["balance_score", "balance", "stability", "postural_stability"],
+    # lunar exterior environment
+    "ext_temp_c": ["ext_temp_c", "exterior_temp", "surface_temp_c", "outside_temp"],
+    "ext_radiation_usv_h": ["ext_radiation_usv_h", "surface_radiation", "ext_dose_rate"],
+    "solar_activity": ["solar_activity", "solar_flare", "kp_index", "solar_index"],
+    "dust_level": ["dust_level", "dust", "regolith_dust"],
+    "sun_elevation_deg": ["sun_elevation_deg", "sun_elevation", "solar_elevation"],
     "stress": ["stress", "stress_score", "stress_index"],
     "sentiment": ["sentiment", "sentiment_score"],
     # cabin / habitat environment (may be in the same file, astronaut_id optional)
@@ -43,6 +59,7 @@ ALIASES = {
 }
 _LOOKUP = {alias: canon for canon, names in ALIASES.items() for alias in names}
 CABIN_FIELDS = ("o2_pct", "ppco2_mmhg", "pressure_kpa", "cabin_temp_c", "humidity_pct")
+EXTERIOR_FIELDS = ("ext_temp_c", "ext_radiation_usv_h", "solar_activity", "dust_level", "sun_elevation_deg")
 
 
 def _num(v):
@@ -143,6 +160,12 @@ class DataSource:
             except (TypeError, ValueError):
                 continue
         return None
+
+    def exterior(self):
+        out = {}
+        for r in self.rows:
+            out.update({k: r[k] for k in EXTERIOR_FIELDS if isinstance(r.get(k), float)})
+        return out
 
     def cabin(self):
         out = {}

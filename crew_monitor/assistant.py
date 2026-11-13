@@ -12,6 +12,9 @@ import re
 import time
 
 from .habitat import LIGHTING, SOUNDSCAPES
+from .learning import VALENCE
+from .music import SPACE_TRACKS, NATURE
+from .physical import MOODS
 from .selfreport import text_sentiment
 
 NAME = "SELENE"
@@ -20,6 +23,30 @@ MODEL = os.environ.get("SELENE_MODEL", "claude-opus-5-5")
 CRISIS = re.compile(r"\b(kill myself|end my life|suicid|hurt myself|self[- ]harm|no reason to live|want to die)\b", re.I)
 EMERGENCY = re.compile(r"\b(emergency|can'?t breathe|chest pain|unconscious|passed out|bleeding|fire|smoke|"
                        r"depressuri[sz]|leak|mayday|medical help)\b", re.I)
+
+
+JOKES = [
+    "Why did the astronaut break up with the Moon? It needed space, and the Moon kept going through phases.",
+    "What's an astronaut's favorite key on the keyboard? The space bar.",
+    "How do you throw a party on the Moon? You planet.",
+    "What do you call a tick on the Moon? A luna-tick.",
+    "Why did the Sun skip college? It already had a million degrees.",
+    "What kind of music do planets sing? Nep-tunes.",
+    "I tried squats in one-sixth gravity. My legs said thanks. My coffee said goodbye.",
+    "Why is the habitat gym never crowded? Everyone feels light about skipping it. Please don't - your bones are watching.",
+    "Mission Control said to watch my heart rate. Up here it's the only thing that doesn't float away.",
+    "Why did the water recycler get promoted? It always turned things around.",
+    "What did the Moon say to the astronaut who forgot to drink water? You're going through a dry phase.",
+    "How does the Moon get its hair cut? E-clipse it.",
+]
+MOOD_WORDS = {
+    "happy": r"happy|great|good|awesome|excited|amazing|fantastic|joy",
+    "calm": r"calm|relaxed|peaceful|content|chill|fine",
+    "tired": r"tired|exhausted|sleepy|drained|fatigued|worn out",
+    "anxious": r"anxious|stressed|worried|nervous|tense|overwhelmed|panick",
+    "sad": r"sad|down|depressed|unhappy|low|blue|upset",
+    "lonely": r"lonely|homesick|alone|isolated|miss (my|home)",
+}
 
 
 # --------------------------------------------------------------------------- tools
@@ -48,6 +75,15 @@ TOOL_SPECS = [
         "severity": {"type": "string", "enum": ["YELLOW", "ORANGE", "RED"]}, "reason": {"type": "string"}},
         ["severity", "reason"])),
     ("set_monitoring", "Pause or resume wellbeing monitoring (privacy).", _obj({"paused": {"type": "boolean"}}, ["paused"])),
+    ("log_mood", "Log the astronaut's mood (one of 6) and run the response SELENE has learned works best for them.",
+     _obj({"mood": {"type": "string", "enum": MOODS}}, ["mood"])),
+    ("tell_joke", "Get a light space/health joke to share (adapt it if you like).", _obj({}, [])),
+    ("play_music", "Play original space music or a soundscape.", _obj({"name": {"type": "string",
+        "enum": SPACE_TRACKS + NATURE + ["next"]}}, ["name"])),
+    ("stop_music", "Stop music and soundscapes.", _obj({}, [])),
+    ("get_exterior_conditions", "Lunar surface conditions: temperature, radiation rate, solar activity, dust, day/night, EVA advice.", _obj({}, [])),
+    ("get_stability", "Physical balance score and emotional stability (from recent moods).", _obj({}, [])),
+    ("get_learned_preferences", "What SELENE has learned works for this astronaut, per mood.", _obj({}, [])),
 ]
 
 
@@ -105,11 +141,67 @@ class Tools:
         return {"lighting": self.ctx.habitat.set_lighting(mode)}
 
     def t_play_soundscape(self, name):
-        return {"playing": self.ctx.habitat.play(name)}
+        return self.t_play_music(name)
 
     def t_stop_soundscape(self):
+        return self.t_stop_music()
+
+    def t_play_music(self, name):
+        m = self.ctx.music
+        if m is None:
+            track = name if name in SPACE_TRACKS + NATURE else SPACE_TRACKS[0]
+        else:
+            track = m.next() if name == "next" else m.play(name)
+        self.ctx.habitat.soundscape = track
+        return {"playing": track}
+
+    def t_stop_music(self):
+        if self.ctx.music:
+            self.ctx.music.stop()
         self.ctx.habitat.stop_sound()
         return {"stopped": True}
+
+    def t_tell_joke(self):
+        return {"joke": JOKES[int(time.time() * 7) % len(JOKES)]}
+
+    def t_get_exterior_conditions(self):
+        return self.ctx.habitat.exterior()
+
+    def t_get_stability(self):
+        return self.ctx.physical.stability(self.ctx.aid)
+
+    def t_get_learned_preferences(self):
+        return self.ctx.learner.preferences(self.ctx.aid)
+
+    def t_log_mood(self, mood):
+        """Logs one of the 6 moods, then performs the learned best response."""
+        if mood not in MOODS:
+            raise ValueError(f"mood must be one of {MOODS}")
+        ctx = self.ctx
+        ctx.learner.mood_followup(ctx.aid, mood)       # did the last suggestion help?
+        ctx.physical.log(ctx.aid, "mood", VALENCE[mood], mood)
+        action = ctx.learner.choose(ctx.aid, mood)
+        fid = ctx.learner.record(ctx.aid, mood, action)
+        self.events.append(("feedback", fid))
+        did = self._do_action(action)
+        return {"mood": mood, "chosen_response": action, "done": did}
+
+    def _do_action(self, action):
+        run = self.run
+        if action.startswith("music_"):
+            return run("play_music", {"name": action[6:].replace("_", " ")})
+        table = {
+            "joke": lambda: run("tell_joke", {}),
+            "light_relax": lambda: run("set_lighting", {"mode": "relax"}),
+            "light_day": lambda: run("set_lighting", {"mode": "day"}),
+            "breathing": lambda: run("start_breathing_exercise", {}),
+            "ocean_relax": lambda: (run("set_lighting", {"mode": "relax"}), run("play_music", {"name": "ocean waves"})),
+            "nap_window": lambda: run("schedule_event", {"what": "20-minute rest", "when": "next schedule gap"}),
+            "family_call": lambda: run("schedule_event", {"what": "private family video call", "when": "next comm window"}),
+            "crew_activity": lambda: run("schedule_event", {"what": "crew movie night", "when": "this evening"}),
+            "earth_view_music": lambda: run("play_music", {"name": "earthrise"}),
+        }
+        return table[action]() if action in table else {"action": action}
 
     def t_set_temperature(self, celsius):
         return {"temperature_c": self.ctx.habitat.set_temperature(celsius)}
@@ -192,6 +284,65 @@ class OfflineBrain:
                 run("set_lighting", {"mode": "day"})
             return f"Logged {h:g} hours of sleep.{extra}"
 
+        if re.search(r"joke|make me laugh|funny|cheer me up", t):
+            return run("tell_joke", {})["joke"]
+        if re.search(r"(next|skip) (track|song)", t):
+            return f"Now playing {run('play_music', {'name': 'next'})['playing']}."
+        if re.search(r"stop (the )?(music|sound|audio)|silence|quiet", t):
+            run("stop_music", {})
+            return "Music stopped."
+        if re.search(r"volume (up|down)|louder|quieter|softer", t) and self.t.ctx.music:
+            m = self.t.ctx.music
+            v = m.set_volume(m.volume + (0.15 if re.search(r"up|louder", t) else -0.15))
+            return f"Volume {int(v * 100)}%."
+        if re.search(r"\b(play|music|song|soundscape)\b", t):
+            from .music import SPACE_TRACKS as ST, NATURE as NT
+            name = next((n for n in ST + NT if n in t or n.split()[0] in t.split()), "lunar drift")
+            return f"Playing {run('play_music', {'name': name})['playing']}. Enjoy the view."
+        if re.search(r"brain ?waves?|eeg|alpha|theta", t):
+            b = self.t.ctx.physical.summary(self.t.ctx.aid)["brainwaves"]
+            if not b:
+                return "No brainwave data yet. Add eeg_alpha, eeg_beta, eeg_theta, eeg_delta and eeg_gamma columns to your data file."
+            sh = b["share"]
+            return (f"Your brainwaves look {b['state']}: alpha {sh['alpha']:.0%}, beta {sh['beta']:.0%}, "
+                    f"theta {sh['theta']:.0%}, delta {sh['delta']:.0%}, gamma {sh['gamma']:.0%}.")
+        if re.search(r"blood pressure|\bbp\b|blood flow|circulation|perfusion", t):
+            p = self.t.ctx.physical.summary(self.t.ctx.aid)
+            if p["systolic_bp"] is None and p["perfusion_index"] is None:
+                return "No blood pressure data yet. Add systolic_bp, diastolic_bp or perfusion_index columns."
+            bits = []
+            if p["systolic_bp"] is not None:
+                bits.append(f"blood pressure {p['systolic_bp']:.0f}/{p['diastolic_bp']:.0f} mmHg")
+            if p["perfusion_index"] is not None:
+                bits.append(f"blood flow (perfusion index) {p['perfusion_index']:.1f}")
+            note = (" In low gravity, body fluids shift toward the head, so we watch this closely."
+                    if p["systolic_bp"] is not None else "")
+            return "Your " + " and ".join(bits) + "." + note
+        if re.search(r"stab(le|ility)|balance|steady|dizzy", t):
+            st = run("get_stability", {})
+            parts = []
+            if st["balance_score"] is not None:
+                parts.append(f"balance score {st['balance_score']:.0f} out of 100")
+            if st["emotional_stability"] is not None:
+                parts.append(f"emotional stability {st['emotional_stability']} out of 100 over your last {st['mood_samples']} mood logs")
+            return ("Your " + " and ".join(parts) + ".") if parts else "Not enough data yet. Log a few moods, or add a balance_score column."
+        if re.search(r"outside|exterior|surface|solar|dust|weather|eva", t):
+            e = run("get_exterior_conditions", {})
+            if len(e) <= 2:
+                return "No exterior sensor data yet. Add ext_temp_c, solar_activity, dust_level or sun_elevation_deg columns."
+            bits = []
+            if "ext_temp_c" in e: bits.append(f"surface {e['ext_temp_c']:.0f} °C")
+            if "ext_radiation_usv_h" in e: bits.append(f"radiation {e['ext_radiation_usv_h']:.0f} µSv/h")
+            if "solar_activity" in e: bits.append(f"solar activity {e['solar_activity']:.0f}/9")
+            if "dust_level" in e: bits.append(f"dust {e['dust_level']:.0f}/10")
+            msg = "Outside: " + ", ".join(bits) + "."
+            if e["notes"]: msg += " " + "; ".join(e["notes"]).capitalize() + "."
+            return msg + (" EVA conditions look okay." if e["eva_ok"] else " I'd hold off on EVA.")
+        if re.search(r"what have you learned|learned|preferences", t):
+            prefs = run("get_learned_preferences", {})
+            if not prefs:
+                return "I'm still learning. Tap Helpful or Not helpful after my suggestions and I'll adapt to you."
+            return "Here's what works for you: " + "; ".join(f"when {m}, {v[0]['action'].replace('_', ' ')}" for m, v in prefs.items()) + "."
         if re.search(r"check[- ]?in|scan me|assess me|wellbeing check", t):
             r = run("start_wellbeing_checkin", {})
             return ("Starting your check-in. Face the camera with your shoulders visible and answer the question out loud."
@@ -205,12 +356,6 @@ class OfflineBrain:
         if re.search(r"lights? (off|out)", t):
             run("set_lighting", {"mode": "sleep"})
             return "Lights off. Sleep well."
-        if re.search(r"stop (the )?(sound|music|audio)|silence|quiet", t):
-            run("stop_soundscape", {})
-            return "Soundscape stopped."
-        if re.search(r"play|sound|listen", t):
-            name = next((s for s in SOUNDSCAPES if any(w in t for w in s.split())), "earth forest")
-            return f"Playing {run('play_soundscape', {'name': name})['playing']}."
         m = re.search(r"(?:temperature|temp|warmer|cooler|degrees).*?(\d{2}(?:\.\d)?)|(\d{2}(?:\.\d)?)\s*degrees", t)
         if m:
             return f"Cabin temperature set to {run('set_temperature', {'celsius': float(m.group(1) or m.group(2))})['temperature_c']:.1f} °C."
@@ -245,7 +390,16 @@ class OfflineBrain:
             return "Monitoring resumed."
         if re.search(r"heart|pulse|hrv|oxygen|spo2|vital|temperature", t) or re.search(r"how am i|status|summary|doing|health|report", t):
             return self._summary()
-        if re.search(r"\b(feel|feeling|i'?m|i am)\b", t):
+        if re.search(r"can'?t sleep|insomnia", t):
+            run("set_lighting", {"mode": "night"})
+            run("play_music", {"name": "rain"})
+            return "I've dimmed to night lighting and started gentle rain. Try slow breathing; I'll keep things quiet."
+        if re.search(r"\b(feel|feeling|i'?m|i am|mood)\b", t):
+            mood = next((m for m, rx in MOOD_WORDS.items() if re.search(rx, t)), None)
+            if re.search(r"\bnot (so |very |that )?(happy|good|great|fine|calm)", t):
+                mood = "sad"
+            if mood:
+                return self.mood_reply(mood)
             return self._feeling(t)
         if re.search(r"help|what can you|commands", t):
             return ("You can ask: how am I doing, start my check-in, log 45 minutes of resistive exercise, I drank 500 ml, "
@@ -270,6 +424,32 @@ class OfflineBrain:
         if flags:
             parts.append("Heads up: " + flags[0])
         return " ".join(parts)
+
+    def mood_reply(self, mood):
+        r = self.t.run("log_mood", {"mood": mood})
+        a, done = r["chosen_response"], r["done"]
+        opener = {"happy": "Love hearing that!", "calm": "Nice, calm is a great place to be.",
+                  "tired": "Thanks for telling me.", "anxious": "I hear you. Let's bring it down a notch.",
+                  "sad": "I'm sorry it's a heavy day.", "lonely": "That's a really normal feeling this far from home."}[mood]
+        follow = {
+            "celebrate": "Want me to log that win in your mission journal?",
+            "joke": "Here's one for you: " + (done.get("joke", "") if isinstance(done, dict) else ""),
+            "light_relax": "I've switched to warm relax lighting.",
+            "light_day": "I've brightened the lights to help you feel more alert.",
+            "nap_window": "I've reserved a 20-minute rest in your next schedule gap.",
+            "breathing": "Let's do a short 4-7-8 breathing exercise together.",
+            "ocean_relax": "I've set warm lighting and ocean waves.",
+            "family_call": "I've booked a private family video call in the next comm window.",
+            "crew_activity": "I've suggested a crew movie night this evening.",
+            "earth_view_music": "Here's Earthrise music, with the Earth view on the virtual window.",
+            "talk": "Do you want to tell me what's on your mind?",
+            "none": "I'm here if you need anything.",
+        }
+        if a.startswith("music_"):
+            text = f"I've put on {a[6:].replace('_', ' ').title()}, some space music I think you'll like."
+        else:
+            text = follow.get(a, "")
+        return f"{opener} {text} Was that helpful?"
 
     def _feeling(self, t):
         s = text_sentiment(t)
@@ -309,6 +489,12 @@ Rules:
   then respond calmly and supportively.
 - Act on clear requests (lighting, sounds, logging, scheduling) without asking for confirmation.
 - Respect privacy: crew data is shared with ground only with consent; never pressure anyone to share.
+- Be warm and a little playful: light space humor is welcome (tell_joke, or your own) when the astronaut is
+  okay, never during emergencies or real distress.
+- When the astronaut describes a feeling, map it to one of the 6 moods and call log_mood - it runs the response
+  SELENE has learned works best for this person. Give brief, specific feedback after actions and logs.
+- You can explain brainwaves (EEG bands), blood pressure / blood flow, stability and exterior lunar conditions
+  using get_health_summary, get_stability and get_exterior_conditions.
 """
 
 

@@ -17,6 +17,7 @@ from .assistant import Assistant, NAME
 from .context import DashboardContext
 from .habitat import LIGHTING, SOUNDSCAPES
 
+LOGO = 96                      # header logo size (px)
 BG, PANEL, PANEL2, BORDER = "#0B1020", "#121A2E", "#19233D", "#26314F"
 TEXT, MUTED, ACCENT, CYAN, PINK = "#E8ECF6", "#8C97B2", "#7B61FF", "#3DDCFF", "#FF5FD2"
 LEVEL = {"GREEN": "#3DDC97", "YELLOW": "#F5C04E", "ORANGE": "#FF8A4C", "RED": "#FF4D6A",
@@ -162,7 +163,7 @@ class SeleneApp(ctk.CTk):
         self.results = queue.Queue()
         self.ai_state, self.frame_i, self.busy = "idle", 0, False
         self.handsfree = False
-        self.logo_frames = {"idle": [ctk.CTkImage(logo.render(190, i / 24, "idle"), size=(190, 190)) for i in range(24)]}
+        self.logo_frames = {"idle": [ctk.CTkImage(logo.render(LOGO, i / 24, "idle"), size=(LOGO, LOGO)) for i in range(24)]}
         self.small_logo = ctk.CTkImage(logo.render(44, 0.15), size=(44, 44))
         self.speaker.on_start = lambda: self.results.put(("state", "speaking"))
         self.speaker.on_end = lambda: self.results.put(("state", "idle"))
@@ -221,15 +222,26 @@ class SeleneApp(ctk.CTk):
 
     def _build_header(self):
         h = ctk.CTkFrame(self.main, fg_color="transparent")
-        h.pack(fill="x", padx=24, pady=(18, 8))
+        h.pack(fill="x", padx=24, pady=(10, 4))
+        h.grid_columnconfigure(0, weight=1, uniform="side")
+        h.grid_columnconfigure(2, weight=1, uniform="side")
         left = ctk.CTkFrame(h, fg_color="transparent")
-        left.pack(side="left")
-        self.greeting = ctk.CTkLabel(left, text="", font=font(24, "bold"), text_color=TEXT)
+        left.grid(row=0, column=0, sticky="w")
+        self.greeting = ctk.CTkLabel(left, text="", font=font(22, "bold"), text_color=TEXT)
         self.greeting.pack(anchor="w")
         self.subtitle = ctk.CTkLabel(left, text="", font=font(13), text_color=MUTED)
         self.subtitle.pack(anchor="w")
+
+        center = ctk.CTkFrame(h, fg_color="transparent")          # AI logo, top middle
+        center.grid(row=0, column=1)
+        self.orb = ctk.CTkLabel(center, text="", image=self.logo_frames["idle"][0])
+        self.orb.pack()
+        ctk.CTkLabel(center, text=NAME, font=font(18, "bold"), text_color=TEXT).pack(pady=(0, 0))
+        self.state_label = ctk.CTkLabel(center, text="", font=font(12), text_color=MUTED, height=16)
+        self.state_label.pack()
+
         self.overall = ctk.CTkLabel(h, text="", font=font(13, "bold"), corner_radius=14, height=32, text_color=BG)
-        self.overall.pack(side="right")
+        self.overall.grid(row=0, column=2, sticky="e")
 
     def _page(self, name):
         f = ctk.CTkFrame(self.main, fg_color="transparent")
@@ -243,34 +255,32 @@ class SeleneApp(ctk.CTk):
         p.grid_columnconfigure(2, weight=4, uniform="c")
         p.grid_rowconfigure(0, weight=1)
 
-        # --- assistant column
+        # --- simple chatbot
         ai = ctk.CTkFrame(p, fg_color=PANEL, corner_radius=16, border_width=1, border_color=BORDER)
         ai.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        self.orb = ctk.CTkLabel(ai, text="", image=self.logo_frames["idle"][0])
-        self.orb.pack(pady=(14, 0))
-        self.state_label = ctk.CTkLabel(ai, text="Say \"Hey Selene\" or tap Talk", font=font(13), text_color=MUTED)
-        self.state_label.pack()
+        ctk.CTkLabel(ai, text="CHAT WITH SELENE", font=font(11, "bold"), text_color=MUTED).pack(anchor="w", padx=16, pady=(14, 4))
         self.chat = ctk.CTkScrollableFrame(ai, fg_color=BG, corner_radius=12)
-        self.chat.pack(fill="both", expand=True, padx=14, pady=(10, 8))
+        self.chat.pack(fill="both", expand=True, padx=14, pady=(0, 8))
         chips = ctk.CTkFrame(ai, fg_color="transparent")
         chips.pack(fill="x", padx=14)
-        for i, (label, q) in enumerate(QUICK):
+        for i, (label, q) in enumerate(QUICK[:3]):
             ctk.CTkButton(chips, text=label, height=28, corner_radius=14, font=font(12), fg_color=PANEL2,
                           hover_color=BORDER, text_color=TEXT, command=lambda q=q: self.send(q)
-                          ).grid(row=i // 3, column=i % 3, padx=3, pady=3, sticky="ew")
-        for c in range(3):
-            chips.grid_columnconfigure(c, weight=1)
+                          ).grid(row=0, column=i, padx=3, sticky="ew")
+            chips.grid_columnconfigure(i, weight=1)
         bar = ctk.CTkFrame(ai, fg_color="transparent")
-        bar.pack(fill="x", padx=14, pady=(6, 14))
-        self.entry = ctk.CTkEntry(bar, placeholder_text="Ask SELENE anything...", height=42, corner_radius=21,
+        bar.pack(fill="x", padx=14, pady=(8, 14))
+        self.entry = ctk.CTkEntry(bar, placeholder_text="Type a message...", height=42, corner_radius=21,
                                   fg_color=PANEL2, border_color=BORDER, font=font(13))
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", lambda e: self.send(self.entry.get()))
-        self.talk_btn = ctk.CTkButton(bar, text="Talk", width=74, height=42, corner_radius=21, font=font(13, "bold"),
-                                      fg_color=ACCENT, hover_color="#6A50F0", command=self.talk)
+        ctk.CTkButton(bar, text="Send", width=70, height=42, corner_radius=21, font=font(13, "bold"),
+                      fg_color=ACCENT, hover_color="#6A50F0", command=lambda: self.send(self.entry.get())
+                      ).pack(side="left", padx=(8, 0))
+        self.talk_btn = ctk.CTkButton(bar, text="Mic", width=56, height=42, corner_radius=21, font=font(13, "bold"),
+                                      fg_color=PANEL2, hover_color=BORDER, border_width=1, border_color=CYAN,
+                                      command=self.talk)
         self.talk_btn.pack(side="left", padx=(8, 0))
-        self.hf_switch = ctk.CTkSwitch(bar, text="Hey Selene", font=font(11), progress_color=CYAN, command=self._toggle_handsfree)
-        self.hf_switch.pack(side="left", padx=(10, 0))
 
         # --- physical column
         col = ctk.CTkFrame(p, fg_color="transparent")
@@ -388,6 +398,9 @@ class SeleneApp(ctk.CTk):
         self.voice_switch = ctk.CTkSwitch(c.body, text="Speak replies out loud", command=self._toggle_voice, progress_color=CYAN)
         self.voice_switch.select()
         self.voice_switch.pack(anchor="w")
+        self.hf_switch = ctk.CTkSwitch(c.body, text='Hands-free: listen for "Hey Selene"', command=self._toggle_handsfree,
+                                       progress_color=CYAN)
+        self.hf_switch.pack(anchor="w", pady=(8, 0))
         self.ai_info = ctk.CTkLabel(c.body, text="", font=font(12), text_color=MUTED, justify="left", anchor="w")
         self.ai_info.pack(fill="x", pady=(8, 0))
         c = Card(p, "Privacy")
@@ -428,7 +441,7 @@ class SeleneApp(ctk.CTk):
 
     def set_state(self, state, text=None):
         self.ai_state = state if state in self.logo_frames else "idle"
-        labels = {"idle": "Say \"Hey Selene\" or tap Talk", "listening": "Listening...",
+        labels = {"idle": "Online and ready", "listening": "Listening...",
                   "thinking": "Thinking...", "speaking": "Speaking..."}
         self.state_label.configure(text=text or labels.get(state, ""))
 
@@ -733,8 +746,8 @@ class SeleneApp(ctk.CTk):
     # ------------------------------------------------------------------ animation
     def _render_state_frames(self):
         for st in ("listening", "thinking", "speaking"):
-            pil = [logo.render(190, i / 24, st) for i in range(24)]
-            self.logo_frames[st] = [ctk.CTkImage(im, size=(190, 190)) for im in pil]
+            pil = [logo.render(LOGO, i / 24, st) for i in range(24)]
+            self.logo_frames[st] = [ctk.CTkImage(im, size=(LOGO, LOGO)) for im in pil]
 
     def _animate(self):
         frames = self.logo_frames.get(self.ai_state) or self.logo_frames["idle"]
